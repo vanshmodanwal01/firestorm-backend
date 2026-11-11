@@ -1,6 +1,7 @@
 """Environment-based application settings (no secrets are hardcoded)."""
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,6 +18,17 @@ class Settings(BaseSettings):
     cache_ttl_hours: int = 168
 
     cors_origins: str = "http://localhost:3000,http://localhost:5173"
+
+    @field_validator("database_url")
+    @classmethod
+    def _normalize_database_url(cls, v: str) -> str:
+        # Railway (and Heroku-style hosts) hand out postgres:// or postgresql://
+        # URLs; SQLAlchemy needs an explicit driver.
+        if v.startswith("postgres://"):
+            v = "postgresql+psycopg2://" + v[len("postgres://"):]
+        elif v.startswith("postgresql://"):
+            v = "postgresql+psycopg2://" + v[len("postgresql://"):]
+        return v
 
     @property
     def cors_origin_list(self) -> list[str]:

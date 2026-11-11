@@ -1,313 +1,73 @@
-# 🔥 Firestorm Innovators – Earth System Trend Detective
+# Earth System Trend Detective: Backend
 
-### Backend | NASA Space Apps Challenge 2026
+NASA Space Apps Challenge 2026, "Be An Earth System Trend Detective!" (backend only).
 
-**Turning Earth observation data into meaningful environmental insights.**
+It fetches real **NASA POWER** data, removes the seasonal cycle, tests for a trend, and explains the result in plain language.
+Meteorological variables are **MERRA-2 reanalysis** (model-assimilated), not direct instrument readings. The API says so in every response.
 
-Firestorm is the backend system developed for NASA Space Apps Challenge 2026 – *Earth System Trend Detective*. It focuses on collecting, processing, analyzing, and managing environmental and climate-related datasets to identify meaningful patterns and long-term changes in Earth's systems.
-
-The backend integrates NASA POWER data services with scientific data-processing libraries to support environmental trend analysis and data-driven insights.
-
----
-
-## 🌍 Project Overview
-
-Understanding how Earth's environmental systems change over time is essential for identifying climate patterns and supporting informed decisions.
-
-Firestorm aims to simplify this process through an automated backend pipeline that works with environmental datasets, processes historical observations, and prepares analytical results for visualization and interpretation.
-
-The system is designed around:
-
-- Environmental data acquisition.
-- Historical climate data processing.
-- Time-series analysis.
-- Statistical trend detection.
-- Data storage and management.
-- API-based communication with the frontend.
-
----
-
-## 🎯 Objectives
-
-1. Retrieve environmental and climate-related data using NASA POWER.
-2. Process and organize historical environmental datasets.
-3. Identify patterns and trends in environmental variables.
-4. Apply statistical methods to analyze changes over time.
-5. Provide structured data through REST APIs.
-6. Maintain a scalable backend architecture for future expansion.
-
----
-
-## 🛠️ Technology Stack
-
-| Technology | Purpose |
-|---|---|
-| Python | Core backend development |
-| FastAPI | REST API development |
-| Uvicorn | ASGI application server |
-| NASA POWER API | Environmental data source |
-| Pandas | Data manipulation and processing |
-| NumPy | Numerical computations |
-| SciPy | Statistical analysis |
-| SQLAlchemy | Database operations |
-| SQLite | Local database |
-| PostgreSQL | Production database support |
-| Alembic | Database migrations |
-| HTTPX | HTTP requests |
-| Pydantic | Data validation |
-| Pytest | Backend testing |
-
----
-
-## 🏗️ Backend Architecture
-
-The backend follows a modular architecture that separates application responsibilities.
-
-```text
-firestorm-backend/
-│
-├── app/
-│   ├── API / Routes
-│   ├── Services
-│   ├── Models
-│   ├── Database
-│   └── Configuration
-│
-├── scripts/
-│   └── Utility and execution scripts
-│
-├── tests/
-│   └── Backend test cases
-│
-├── .env.example
-├── .gitignore
-├── power_probe.json
-├── requirements.txt
-└── README.md
-```
-
-*Note: The directory descriptions above are conceptual; refer to the implementation for the exact module names and responsibilities.*
-
----
-
-## 🛰️ Data Source – NASA POWER
-
-The project uses the **NASA Prediction Of Worldwide Energy Resources (POWER)** service.
-
-NASA POWER provides environmental and meteorological datasets that can be used for climate-related research and analysis.
-
-Official resource:
-
-https://power.larc.nasa.gov/
-
-The backend is configured to communicate with NASA POWER through its API.
-
-### Data Processing Pipeline
-
-```text
-       NASA POWER API
-              |
-              v
-      Data Acquisition
-              |
-              v
-       Data Validation
-              |
-              v
-      Data Preprocessing
-              |
-              v
-      Statistical Analysis
-              |
-              v
-       Trend Detection
-              |
-              v
-       Database Storage
-              |
-              v
-        REST API Output
-              |
-              v
-       Frontend Dashboard
-```
-
----
-
-## 📊 Environmental Data Analysis
-
-The backend uses scientific Python libraries to support environmental data analysis.
-
-Core analytical capabilities are intended to include:
-
-- Time-series data processing.
-- Historical data comparison.
-- Statistical calculations.
-- Environmental trend identification.
-- Numerical data analysis.
-- Preparation of structured analytical results.
-
----
-
-## ⚙️ Installation & Setup
-
-Follow these instructions to run the backend locally.
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/vanshmodanwal01/firestorm-backend.git
-
-cd firestorm-backend
-```
-
-### 2. Create a Virtual Environment
+## Run locally
 
 ```bash
 python -m venv venv
+venv\Scripts\activate            # Windows PowerShell; on macOS/Linux: source venv/bin/activate
+pip install -r requirements-dev.txt
+copy .env.example .env           # macOS/Linux: cp .env.example .env
+uvicorn app.main:app --reload
 ```
 
-Activate the environment.
+Swagger docs: http://127.0.0.1:8000/docs
 
-**Windows:**
+Run the tests (offline, no NASA access needed): `python -m pytest -q`
+
+## Endpoints (`/api/v1`)
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/health` | Liveness check |
+| GET | `/variables`, `/variables/{code}` | Variables with plain-language definitions |
+| GET | `/observations` | Time series for one variable and location |
+| POST | `/trends/analyze` | Full trend analysis (chart-ready series, statistics, insight) |
+
+Every success response is `{"data": ..., "meta": {"request_id": "...", "cached": false}}`.
+Every error is `{"error": {"code": "...", "message": "...", "details": {}, "request_id": "..."}}`.
+
+| Status | Code | Meaning |
+|---|---|---|
+| 404 | `not_found` / `no_data` | Unknown variable / NASA had no data |
+| 422 | `validation_error` | Bad input |
+| 429 | `upstream_rate_limited` | NASA is throttling us |
+| 502 | `upstream_bad_response` | NASA answered in an unexpected shape |
+| 503 | `upstream_unavailable` | NASA unreachable after retries (no substitute data is ever generated) |
+
+### Example: analyze a trend
 
 ```bash
-venv\Scripts\activate
+curl -X POST http://127.0.0.1:8000/api/v1/trends/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"variable":"T2M","latitude":25.43,"longitude":81.84,"start_year":1985,"end_year":2025}'
 ```
 
-**Linux / macOS:**
+Key fields of `data`: `trend.classification` (`increasing`, `decreasing`, `no_significant_trend`, `inconclusive`,
+`insufficient_data`), `trend.sen_slope` (rate per decade with confidence interval), `trend.mann_kendall.p_value`,
+`trend.change` (total change, effect size), `series` (parallel arrays for charts; `null` = missing),
+`diagnostics` (data quality and every cleaning action), and `insight` (plain-language summary).
 
-```bash
-source venv/bin/activate
-```
+### Example: raw observations
 
-### 3. Install Dependencies
+`GET /observations?variable=T2M&latitude=25.43&longitude=81.84&start_year=2000&end_year=2020`
 
-```bash
-pip install -r requirements.txt
-```
+## How trends are tested
 
-### 4. Configure Environment Variables
+1. Monthly values -> subtract each calendar month's average (removes the seasonal cycle) -> annual mean anomalies (a year needs at least 9 valid months).
+2. **Mann-Kendall** test with the **Hamed-Rao autocorrelation correction** (floored at 1.0 so the correction can only make the test stricter). At least 10 valid years are required.
+3. **Sen's slope** for the rate, with a confidence interval that uses the corrected variance.
+4. **OLS** with Newey-West robust errors as a cross-check. **Seasonal Mann-Kendall** on raw monthly values as supporting evidence.
+5. A trend is called increasing/decreasing only if the corrected Mann-Kendall p-value is below `alpha` **and** Mann-Kendall, Sen and OLS agree on direction. Otherwise it is `no_significant_trend` or `inconclusive`.
+6. Statistical significance is kept separate from practical importance (`effect_size`: change relative to year-to-year variation).
 
-Create your local `.env` file using the example configuration.
+Nothing is imputed. Missing values stay `null`, outliers are flagged but kept, and every data-changing step is listed in `diagnostics.notes`.
 
-```bash
-copy .env.example .env
-```
+## Deploy on Railway
 
-For Linux/macOS:
-
-```bash
-cp .env.example .env
-```
-
-Configure the following variables:
-
-```env
-DATABASE_URL=sqlite:///./nasa_trends.db
-
-LOG_LEVEL=INFO
-
-POWER_BASE_URL=https://power.larc.nasa.gov
-
-POWER_MAX_REQUESTS_PER_MINUTE=30
-
-POWER_TIMEOUT_SECONDS=60
-
-POWER_MAX_RETRIES=3
-
-CACHE_TTL_HOURS=168
-
-CORS_ORIGINS=http://localhost:3000,http://localhost:5173
-```
-
-**Important:** NASA POWER data access does not require an API key.
-
-Never upload your actual `.env` file or private credentials to GitHub.
-
-### 5. Run the Backend
-
-Start the FastAPI application using the project's configured ASGI application entry point.
-
-```bash
-uvicorn <application_module>:app --reload
-```
-
-Replace `<application_module>` with the actual module containing your FastAPI application instance.
-
-### 6. API Documentation
-
-Once the backend is running, FastAPI provides interactive API documentation.
-
-- Swagger UI: `http://127.0.0.1:8000/docs`
-- ReDoc: `http://127.0.0.1:8000/redoc`
-
----
-
-## 🧪 Testing
-
-The project uses Pytest for backend testing.
-
-Run the test suite:
-
-```bash
-pytest
-```
-
-For detailed output:
-
-```bash
-pytest -v
-```
-
----
-
-## 🔐 Configuration & Security
-
-- Environment variables are used for application configuration.
-- `.env` is excluded from Git tracking.
-- CORS configuration controls permitted frontend origins.
-- Database configuration supports local and production environments.
-- External API requests use configurable timeout and retry settings.
-
----
-
-## 🚀 Future Scope
-
-Potential improvements include:
-
-- Advanced climate trend detection algorithms.
-- Automated environmental data collection.
-- Interactive geographical data analysis.
-- Anomaly detection in environmental observations.
-- Long-term climate pattern comparison.
-- Additional NASA Earth observation data sources.
-- Improved analytical visualization support.
-- Scalable cloud deployment.
-
----
-
-## 👥 Team – Firestorm Innovators
-
-**NASA Space Apps Challenge 2026**
-
-We are a team of innovators working to explore environmental data through technology, scientific analysis, and software engineering.
-
-Our goal is to make complex Earth system data easier to understand and analyze.
-
----
-
-## 📜 Acknowledgements
-
-We would like to acknowledge:
-
-- NASA Space Apps Challenge.
-- NASA POWER Project.
-- Open-source Python community.
-- FastAPI and scientific Python ecosystem.
-
----
-
-**Built with ❤️ by Firestorm Innovators**
-
-*Exploring Earth. Detecting Trends. Understanding Change.*
+Add the Postgres plugin, set `DATABASE_URL` from it (`postgres://` URLs are converted automatically) and `CORS_ORIGINS` to your frontend's domain.
+The `Procfile` supplies the start command. The response cache lives in the database because Railway's disk is ephemeral.

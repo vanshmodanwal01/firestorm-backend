@@ -40,6 +40,11 @@ class UpstreamBadResponse(AppError):
     http_status = 502
 
 
+class NotFound(AppError):
+    code = "not_found"
+    http_status = 404
+
+
 class NoDataAvailable(AppError):
     code = "no_data"
     http_status = 404

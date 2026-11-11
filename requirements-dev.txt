@@ -1,0 +1,4 @@
+-r requirements.txt
+# Reference implementations used ONLY by tests to cross-check our own algorithms.
+pymannkendall>=1.4
+statsmodels>=0.14

@@ -3,11 +3,12 @@
 Responsibilities: validate input, rate-limit, retry with backoff, cache the raw
 response, and convert it into source-agnostic TimeSeries objects.
 
-IMPORTANT: the response parser follows the POWER JSON layout as documented by
-NASA's API (values under properties.parameter.<CODE>, fill value and units in
-header/parameters). It is strict: if the shape is not what we expect it raises
-UpstreamBadResponse instead of guessing. Verify against a real response with
-scripts/probe_power.py.
+The response layout was CONFIRMED against a real POWER response (probe run on
+2026-11-10): top-level keys type/geometry/properties/header/messages/parameters/
+times, values under properties.parameter.<CODE> keyed YYYYMM, header.fill_value
+= -999.0, units in parameters.<CODE>.units, and a YYYY13 key per year holding
+the annual summary. The parser is strict: if the shape differs it raises
+UpstreamBadResponse instead of guessing. Re-check with scripts/probe_power.py.
 """
 import asyncio
 import logging
@@ -196,6 +197,12 @@ class PowerProvider(DataProvider):
 
         header = payload.get("header") if isinstance(payload.get("header"), dict) else {}
         notes_global: list[str] = []
+        # NASA may attach human-readable warnings; surface them, never hide them.
+        upstream_messages = payload.get("messages")
+        if isinstance(upstream_messages, list):
+            for m in upstream_messages[:5]:
+                if isinstance(m, str) and m.strip():
+                    notes_global.append(f"NASA message: {m.strip()[:300]}")
         fill = header.get("fill_value")
         if fill is None:
             fill = DEFAULT_FILL_VALUE
