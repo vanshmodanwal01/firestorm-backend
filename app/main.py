@@ -92,7 +92,12 @@ def create_app() -> FastAPI:
     app.include_router(bridge_router, prefix="/api/v1")
 
     # 2. Serve TerraTrend Frontend static assets & pages
-    frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend"))
+    frontend_candidates = [
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend")),
+        os.path.abspath(os.path.join(os.getcwd(), "frontend"))
+    ]
+    frontend_dir = next((d for d in frontend_candidates if os.path.isdir(d)), None)
     if os.path.exists(frontend_dir):
         # Mount assets directories
         for folder in ["css", "js"]:

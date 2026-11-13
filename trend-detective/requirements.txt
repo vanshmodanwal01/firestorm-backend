@@ -1,0 +1,8 @@
+numpy
+scipy
+pandas
+matplotlib
+# for real NASA data (data.py):
+xarray
+netcdf4
+earthaccess

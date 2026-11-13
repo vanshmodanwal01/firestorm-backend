@@ -17,15 +17,28 @@ from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-# Ensure trend-detective is in sys.path
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
-TREND_DETECTIVE_DIR = os.path.join(BASE_DIR, "trend-detective")
+# Ensure trend-detective is in sys.path (flexible resolution for monorepo and standalone)
+_this_file = os.path.abspath(__file__)
+_app_dir = os.path.dirname(os.path.dirname(os.path.dirname(_this_file))) # backend/app
+_backend_root = os.path.dirname(_app_dir) # backend
+_parent_root = os.path.dirname(_backend_root) # parent
+
+_td_candidates = [
+    os.path.join(_backend_root, "trend-detective"),
+    os.path.join(_parent_root, "trend-detective"),
+    os.path.join(os.getcwd(), "trend-detective"),
+]
+TREND_DETECTIVE_DIR = next((d for d in _td_candidates if os.path.isdir(d)), _td_candidates[0])
 if TREND_DETECTIVE_DIR not in sys.path:
     sys.path.insert(0, TREND_DETECTIVE_DIR)
 
-# Configure writable matplotlib cache in workspace
-os.environ["MPLCONFIGDIR"] = os.path.join(BASE_DIR, ".matplotlib_cache")
-os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
+# Configure writable matplotlib cache
+_mpl_dir = os.environ.get("MPLCONFIGDIR") or os.path.join(os.path.expanduser("~"), ".matplotlib_cache")
+os.environ["MPLCONFIGDIR"] = _mpl_dir
+try:
+    os.makedirs(_mpl_dir, exist_ok=True)
+except Exception:
+    pass
 
 try:
     import core as td_core
