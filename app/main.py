@@ -5,6 +5,7 @@ Railway start: uvicorn app.main:app --host 0.0.0.0 --port $PORT
 Interactive docs (Swagger): /docs      OpenAPI JSON: /openapi.json
 """
 import logging
+import os
 import uuid
 from contextlib import asynccontextmanager
 
@@ -12,9 +13,11 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.dependencies import get_power_provider
+from app.api.endpoints.frontend_bridge import router as bridge_router
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.errors import AppError
@@ -43,19 +46,21 @@ def create_app() -> FastAPI:
     configure_logging(settings.log_level)
 
     app = FastAPI(
-        title="Earth System Trend Detective API",
+        title="TerraTrend & Earth System Trend Detective API",
         version="0.2.0",
         description=(
-            "Backend for NASA Space Apps 2026 'Be An Earth System Trend Detective!'. Retrieves real "
-            "NASA POWER data, removes the seasonal cycle, tests for trends (Mann-Kendall with "
-            "autocorrelation correction, Sen's slope, robust OLS) and explains the result in plain language. "
-            "Meteorological values are MERRA-2 reanalysis, not direct instrument readings."
+            "Unified Full-Stack Platform for NASA Space Apps 2026. Integrates TerraTrend Frontend, "
+            "NASA POWER API, and Trend-Detective statistical engine (Mann-Kendall, Hamed-Rao, Sen's slope)."
         ),
         lifespan=lifespan,
     )
+    # Permissive CORS for seamless local testing and multi-port frontend access
     app.add_middleware(
-        CORSMiddleware, allow_origins=settings.cors_origin_list, allow_credentials=False,
-        allow_methods=["*"], allow_headers=["*"],
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     @app.middleware("http")
@@ -81,11 +86,31 @@ def create_app() -> FastAPI:
         logger.exception("unhandled error")
         return _error(500, "internal_error", "an unexpected error occurred", {}, request)
 
+    # 1. API Routers
     app.include_router(api_router, prefix="/api/v1")
+    app.include_router(bridge_router, prefix="/api")
+    app.include_router(bridge_router, prefix="/api/v1")
 
-    @app.get("/", include_in_schema=False)
-    async def root():
-        return {"name": app.title, "docs": "/docs", "health": "/api/v1/health"}
+    # 2. Serve TerraTrend Frontend static assets & pages
+    frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend"))
+    if os.path.exists(frontend_dir):
+        # Mount assets directories
+        for folder in ["css", "js"]:
+            sub_path = os.path.join(frontend_dir, folder)
+            if os.path.exists(sub_path):
+                app.mount(f"/{folder}", StaticFiles(directory=sub_path), name=folder)
+
+        @app.get("/", include_in_schema=False)
+        async def root_index():
+            index_path = os.path.join(frontend_dir, "index.html")
+            return FileResponse(index_path)
+
+        @app.get("/{page_name}.html", include_in_schema=False)
+        async def serve_page(page_name: str):
+            target = os.path.join(frontend_dir, f"{page_name}.html")
+            if os.path.exists(target):
+                return FileResponse(target)
+            return JSONResponse(status_code=404, content={"detail": f"Page '{page_name}.html' not found"})
 
     return app
 
